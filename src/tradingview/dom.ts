@@ -182,18 +182,19 @@ export function waitForTvChart(timeoutMs = 30_000): Promise<TvChartWidget> {
 
 /**
  * 후보 1: lineToolsAndGroupsDTO() 로 모든 trendline 읽기.
- * 실패 시 후보 2 (dataSources filter) 로 fallback.
- * trend_line 타입만 반환 (v1).
+ * 후보 1 결과 없으면 후보 2 (dataSources filter) 로 fallback.
+ * 마우스 drag 로 그린 line tool 은 lineToolsAndGroupsDTO 에 미등장,
+ * dataSources 에 toolname='LineToolTrendLine' 으로 저장됨 (hotfix5 핵심).
  */
 export function readAllTrendlines(): TvTrendline[] {
   const symbol = readCurrentSymbol().raw
+  let candidate1Result: TvTrendline[] = []
 
   // ── 후보 1: lineToolsAndGroupsDTO() v2 path (state 안 type/points) ────────
   try {
     const w = getActiveWidget()
     if (w && typeof w.lineToolsAndGroupsDTO === 'function') {
       const dto = w.lineToolsAndGroupsDTO()
-      const out: TvTrendline[] = []
 
       // R0-redo 정찰: DTO key 는 layoutKey ('0','1','2'). pane index 아님.
       // 모든 entries walk 의무 — '0' 만 보면 항상 empty (v1 핵심 결함).
@@ -210,7 +211,7 @@ export function readAllTrendlines(): TvTrendline[] {
           // entry 본인의 symbol 이 있으면 우선 사용, 없으면 chart symbol fallback
           const entrySymbol = toolDto.state?.state?.symbol ?? symbol
 
-          out.push({
+          candidate1Result.push({
             id,
             p1: toTrendlinePoint(pts[0]!),
             p2: toTrendlinePoint(pts[1]!),
@@ -221,14 +222,17 @@ export function readAllTrendlines(): TvTrendline[] {
 
       // 진단 console (hotfix3 에 추가된 것 유지 + v2 path marker)
       console.info('[alertapp] readAllTrendlines v2 path: 발견 line type =', [...dto.values()].flatMap(p => [...p.sources.values()].map(s => (s as any)?.state?.type ?? s.type)))
-
-      return out
     }
   } catch (e) {
     console.warn('[alertapp] lineToolsAndGroupsDTO 실패 — 후보 2 시도', e)
   }
 
+  // 후보 1 결과가 있으면 즉시 반환 (hotfix5: 빈 배열이면 후보 2 로 진입)
+  if (candidate1Result.length > 0) return candidate1Result
+
   // ── 후보 2 fallback: pane.dataSources() ─────────────────────────────────
+  // 마우스 drag 로 그린 trendline 은 lineToolsAndGroupsDTO 에 미포함,
+  // pane.dataSources() 에 toolname='LineToolTrendLine' 으로 저장됨.
   try {
     const w = getActiveWidget()
     const model = w?.model?.()
@@ -243,19 +247,22 @@ export function readAllTrendlines(): TvTrendline[] {
 
         const rawPts =
           typeof src.points === 'function'
-            ? (src.points as () => Array<{ time?: number; price?: number }>)()
-            : (src.points ?? src._points ?? [])
+            ? (src.points as () => Array<{ time_t?: number; time?: number; price?: number }>)()
+            : ((src.points as Array<{ time_t?: number; time?: number; price?: number }> | undefined) ?? src._points ?? [])
 
         if (!rawPts || rawPts.length < 2) return
 
         out.push({
-          id: src.id ?? `fb-${Math.random()}`,
+          id: src.id ?? `fb-${Math.random().toString(36).slice(2, 10)}`,
           p1: toTrendlinePoint(rawPts[0]!),
           p2: toTrendlinePoint(rawPts[1]!),
           symbol,
         })
       })
     })
+
+    console.info('[alertapp] readAllTrendlines fallback dataSources: 발견 toolname =',
+      model.panes().flatMap(p => p.dataSources()).map(s => s.toolname ?? s.constructor?.name).filter(n => n && SUPPORTED_TYPES.has(n as string)))
 
     return out
   } catch (e) {
