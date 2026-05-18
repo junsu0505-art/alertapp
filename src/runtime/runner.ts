@@ -38,6 +38,8 @@ export class AlertRunner {
   private readonly _prevTick = new Map<string, TickEvent>()
   /** alert.id → TickHandler (unsubscribe 시 동일 참조 필요) */
   private readonly _handlers = new Map<string, TickHandler>()
+  /** symbol(upper) → tick count (throttle 용) */
+  private readonly _tickCount = new Map<string, number>()
 
   constructor(opts: AlertRunnerOpts) {
     this._ws = opts.ws
@@ -59,6 +61,7 @@ export class AlertRunner {
         this.subscribe(alert)
       }
     }
+    console.info('[alertapp:runner] start: armed alerts subscribed =', settings.alerts.filter(a => a.status === 'armed').length)
   }
 
   /**
@@ -66,6 +69,11 @@ export class AlertRunner {
    */
   subscribe(alert: TrendlineAlert): void {
     if (this._handlers.has(alert.id)) return
+
+    console.info('[alertapp:runner] subscribe alert', {
+      id: alert.id, symbol: alert.symbol, direction: alert.direction,
+      p1: alert.p1, p2: alert.p2, status: alert.status,
+    })
 
     const handler: TickHandler = (tick: TickEvent) => {
       this._onTick(alert, tick)
@@ -108,6 +116,14 @@ export class AlertRunner {
   // -------------------------------------------------------------------------
 
   private _onTick(alert: TrendlineAlert, currTick: TickEvent): void {
+    // tick count 집계 (throttle)
+    const cnt = (this._tickCount.get(currTick.symbol) ?? 0) + 1
+    this._tickCount.set(currTick.symbol, cnt)
+
+    if (cnt === 1 || cnt % 30 === 0) {
+      console.info('[alertapp:runner] tick', { symbol: currTick.symbol, price: currTick.price, ts: currTick.ts, cnt })
+    }
+
     const prevTick = this._prevTick.get(currTick.symbol) ?? null
 
     const result = evaluateAlert(alert, prevTick, currTick)
@@ -115,7 +131,17 @@ export class AlertRunner {
     // prevTick 업데이트 (모든 tick, 판정 결과와 무관)
     this._prevTick.set(currTick.symbol, currTick)
 
+    if (result.reason !== 'no_change') {
+      console.info('[alertapp:runner] evaluateAlert', {
+        alertId: alert.id, direction: alert.direction,
+        linePrice: result.linePrice, reason: result.reason, triggered: result.triggered,
+        prevPrice: prevTick?.price ?? null, currPrice: currTick.price,
+      })
+    }
+
     if (!result.triggered) return
+
+    console.info('[alertapp:runner] ▲ TRIGGERED', alert.id, 'sending telegram...')
 
     // triggered 처리 (fire-and-forget)
     this._handleTrigger(alert, currTick).catch(() => {
@@ -141,7 +167,10 @@ export class AlertRunner {
         `방향: ${dirLabel}\n` +
         `발화 가격: ${linePrice}\n` +
         `시각: ${new Date(now).toLocaleString('ko-KR')}`
-      await sendTelegramMessage(cfg, msg)
+      const sendResult = await sendTelegramMessage(cfg, msg)
+      console.info('[alertapp:runner] telegram send', { ok: sendResult.ok, status: sendResult.status, error: sendResult.error })
+    } else {
+      console.warn('[alertapp:runner] telegram config 미설정 — alert triggered 하지만 메시지 미전송. 위젯의 Telegram 설정 등록 필요.')
     }
 
     // 4. onTrigger 콜백 (widget refresh 목적)
