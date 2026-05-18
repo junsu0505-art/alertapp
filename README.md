@@ -33,10 +33,12 @@ TradingView 차트에 직접 그린 추세선에 가격이 cross 하는 순간 T
 아래 링크를 클릭하면 Tampermonkey 자동 install 화면이 뜹니다.
 
 ```
-https://github.com/junsu0505-art/alertapp/releases/latest/download/alertapp.user.js
+https://raw.githubusercontent.com/junsu0505-art/alertapp/main/dist/alertapp.user.js
 ```
 
 **"설치"** 버튼 클릭 → 완료.
+
+> ⚠️ GitHub Releases asset URL (`.../releases/.../alertapp.user.js`) 은 `Content-Type: application/octet-stream` 으로 응답해서 Tampermonkey 가 가로채지 못합니다. 반드시 위 `raw.githubusercontent.com` URL 사용.
 
 ![userscript 설치](assets/screenshots/02-install.png)
 
