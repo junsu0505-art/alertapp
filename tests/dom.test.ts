@@ -204,6 +204,27 @@ describe('readCurrentSymbol 정규화', () => {
     expect(normalizeBinanceSymbol('COINBASE:BTCUSD')).toBeNull()
   })
 
+  // hotfix6 — TV display slash 형식
+  it('Case 8a: BINANCE:BTC/USDT → BTCUSDT (TV display)', () => {
+    expect(normalizeBinanceSymbol('BINANCE:BTC/USDT')).toBe('BTCUSDT')
+  })
+
+  it('Case 8b: BINANCE:ETH/USDT → ETHUSDT', () => {
+    expect(normalizeBinanceSymbol('BINANCE:ETH/USDT')).toBe('ETHUSDT')
+  })
+
+  it('Case 8c: BINANCE:LRDC/USDT → LRDCUSDT (Tom 실측 case)', () => {
+    expect(normalizeBinanceSymbol('BINANCE:LRDC/USDT')).toBe('LRDCUSDT')
+  })
+
+  it('Case 8d: BINANCE:BTC/USDT.P → null (PERP with slash)', () => {
+    expect(normalizeBinanceSymbol('BINANCE:BTC/USDT.P')).toBeNull()
+  })
+
+  it('Case 8e: BINANCE:BTCUSDTPERP → null (PERP 변형)', () => {
+    expect(normalizeBinanceSymbol('BINANCE:BTCUSDTPERP')).toBeNull()
+  })
+
   it('Case 9: TV API 없음 → raw empty string, binanceSymbol null', () => {
     setMockWidget(null)
     const r = readCurrentSymbol()

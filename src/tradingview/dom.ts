@@ -324,14 +324,19 @@ export function readCurrentSymbol(): { raw: string; binanceSymbol: string | null
 
 /**
  * "BINANCE:BTCUSDT" → "BTCUSDT"
- * "BINANCE:BTCUSDT.P" (PERP) → null (v1 spot만)
+ * "BINANCE:BTC/USDT" → "BTCUSDT" (TV display 형식 slash 허용)
+ * "BINANCE:BTCUSDT.P" or "BINANCE:BTC/USDT.P" (PERP) → null (v1 spot만)
+ * "BINANCE:BTCUSDTPERP" → null (PERP 변형)
  * Binance prefix 없는 symbol → null
  */
 export function normalizeBinanceSymbol(raw: string): string | null {
-  const match = /^BINANCE:([A-Z0-9]+)(\.P)?$/.exec(raw)
+  // BINANCE: prefix + base symbol + optional /quote + optional .P suffix
+  const match = /^BINANCE:([A-Z0-9]+)(?:\/([A-Z0-9]+))?(\.P)?$/.exec(raw)
   if (!match) return null          // 다른 거래소 또는 형식 불일치
-  if (match[2] === '.P') return null  // PERP → v1 제외
-  return match[1]!
+  if (match[3]) return null        // .P suffix → PERP, v1 제외
+  const symbol = match[2] ? `${match[1]}${match[2]}` : match[1]!
+  if (symbol.endsWith('PERP')) return null  // BTCUSDTPERP 등 PERP 변형 제외
+  return symbol
 }
 
 /**
