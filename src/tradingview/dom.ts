@@ -290,34 +290,72 @@ export function readTrendlineById(id: string): TvTrendline | null {
  * raw: TV 원본 (예: "BINANCE:BTCUSDT")
  * binanceSymbol: Binance spot 정규화 (예: "BTCUSDT").
  *   PERP suffix (.P) 또는 Binance prefix 없으면 null.
+ *
+ * hotfix7: R0 evidence (21_real_widget.json) 기반 multi-fallback chain.
+ * 존재하지 않는 symbol()/activeChartSymbolInfo() 제거,
+ * getSymbol() → symbolWV → symbolInfoWV → mainSeries → symbol() 순으로 시도.
  */
 export function readCurrentSymbol(): { raw: string; binanceSymbol: string | null } {
   try {
     const col = (pageWindow as unknown as Record<string, unknown>)['_exposed_chartWidgetCollection'] as
       | {
           activeChartWidget?: {
-            value?: () => {
-              symbol?: () => string
-              activeChartSymbolInfo?: () => { name?: string }
-            }
+            value?: () => Record<string, unknown>
           }
         }
       | undefined
 
     const w = col?.activeChartWidget?.value?.()
-    // TV 내부 symbol() 또는 activeChartSymbolInfo().name 에서 읽기
+    if (!w) return { raw: '', binanceSymbol: null }
+
     let raw: string | undefined
-    if (typeof w?.symbol === 'function') {
-      raw = w.symbol()
-    } else if (typeof w?.activeChartSymbolInfo === 'function') {
-      raw = w.activeChartSymbolInfo()?.name
+    const wAny = w as any
+
+    // 1순위: getSymbol() — R0 evidence 확인된 TV 표준 method.
+    // string 또는 SymbolInfo object 반환 가능.
+    if (typeof wAny.getSymbol === 'function') {
+      const s = wAny.getSymbol()
+      raw = typeof s === 'string' ? s : (s?.name ?? s?.symbol ?? s?.ticker)
     }
 
-    if (!raw) return { raw: '', binanceSymbol: null }
+    // 2순위: symbolWV().value() — watch value subscribable
+    if (!raw && typeof wAny.symbolWV === 'function') {
+      try {
+        const s = wAny.symbolWV()?.value?.()
+        raw = typeof s === 'string' ? s : (s?.name ?? s?.symbol ?? s?.ticker)
+      } catch { /* silent */ }
+    }
 
+    // 3순위: symbolInfoWV().value().name
+    if (!raw && typeof wAny.symbolInfoWV === 'function') {
+      try {
+        const info = wAny.symbolInfoWV()?.value?.()
+        raw = info?.name ?? info?.symbol ?? info?.ticker
+      } catch { /* silent */ }
+    }
+
+    // 4순위: model().mainSeries() 경유
+    if (!raw && typeof wAny.model === 'function') {
+      try {
+        const ms = wAny.model()?.mainSeries?.()
+        const ms2 = ms as any
+        if (typeof ms2?.symbol === 'function') raw = ms2.symbol()
+        else if (typeof ms2?.symbolInfo === 'function') raw = ms2.symbolInfo()?.name
+      } catch { /* silent */ }
+    }
+
+    // 5순위 legacy: w.symbol() (구버전 TV 호환, 현재 미존재 — 보험 fallback)
+    if (!raw && typeof wAny.symbol === 'function') {
+      try { raw = wAny.symbol() } catch { /* silent */ }
+    }
+
+    // 진단 console (hotfix7 한정)
+    console.info('[alertapp] readCurrentSymbol: raw =', raw)
+
+    if (!raw) return { raw: '', binanceSymbol: null }
     return { raw, binanceSymbol: normalizeBinanceSymbol(raw) }
   } catch (e) {
-    console.warn('alertapp: readCurrentSymbol 실패', e)
+    console.warn('[alertapp] readCurrentSymbol 실패', e)
     return { raw: '', binanceSymbol: null }
   }
 }

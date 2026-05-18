@@ -189,11 +189,47 @@ describe('readAllTrendlines (후보 1 — lineToolsAndGroupsDTO)', () => {
 // ---------------------------------------------------------------------------
 
 describe('readCurrentSymbol 정규화', () => {
-  it('Case 6: BINANCE:BTCUSDT → binanceSymbol BTCUSDT', () => {
+  // hotfix7: getSymbol() 가 1순위 fallback
+  it('Case 6: getSymbol() present → raw/binanceSymbol 정상 반환', () => {
+    ;(window as any)._exposed_chartWidgetCollection = {
+      activeChartWidget: { value: () => ({ getSymbol: () => 'BINANCE:BTCUSDT' }) },
+    }
+    const r = readCurrentSymbol()
+    expect(r.raw).toBe('BINANCE:BTCUSDT')
+    expect(r.binanceSymbol).toBe('BTCUSDT')
+  })
+
+  it('Case 6a: getSymbol() 없고 legacy symbol() present → fallback 동작', () => {
     setMockWidget({ symbol: () => 'BINANCE:BTCUSDT' })
     const r = readCurrentSymbol()
     expect(r.raw).toBe('BINANCE:BTCUSDT')
     expect(r.binanceSymbol).toBe('BTCUSDT')
+  })
+
+  it('Case 6b: symbolWV() fallback — getSymbol 없을 때', () => {
+    ;(window as any)._exposed_chartWidgetCollection = {
+      activeChartWidget: {
+        value: () => ({
+          symbolWV: () => ({ value: () => 'BINANCE:ETHUSDT' }),
+        }),
+      },
+    }
+    const r = readCurrentSymbol()
+    expect(r.raw).toBe('BINANCE:ETHUSDT')
+    expect(r.binanceSymbol).toBe('ETHUSDT')
+  })
+
+  it('Case 6c: symbolInfoWV() fallback — getSymbol/symbolWV 없을 때', () => {
+    ;(window as any)._exposed_chartWidgetCollection = {
+      activeChartWidget: {
+        value: () => ({
+          symbolInfoWV: () => ({ value: () => ({ name: 'BINANCE:SOLUSDT' }) }),
+        }),
+      },
+    }
+    const r = readCurrentSymbol()
+    expect(r.raw).toBe('BINANCE:SOLUSDT')
+    expect(r.binanceSymbol).toBe('SOLUSDT')
   })
 
   it('Case 7: BINANCE:BTCUSDT.P (PERP) → binanceSymbol null', () => {
