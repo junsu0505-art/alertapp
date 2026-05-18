@@ -32,18 +32,35 @@ const pageWindow: Window = typeof unsafeWindow !== 'undefined' ? unsafeWindow : 
 // ---------------------------------------------------------------------------
 
 interface TvToolDTO {
-  type: string
-  // points: [{time: unixSec, price: number}, ...] 또는 [{index, value}, ...]
-  points: Array<{ time?: number; price?: number; index?: number; value?: number }>
+  // v2: 실제 type/points 는 state 한 단계 안에 있음 (TV-DOM-recon-v2.md)
+  state?: {
+    type: string
+    points: Array<{
+      time_t?: number
+      time?: number
+      price?: number
+      index?: number
+      value?: number
+    }>
+    state?: {
+      symbol?: string
+      interval?: string
+    }
+  }
+  // v1 legacy fallback (구버전 TV 호환)
+  type?: string
+  points?: Array<{ time_t?: number; time?: number; price?: number; index?: number; value?: number }>
   properties?: unknown
 }
 
 interface TvPaneDTO {
+  // layoutKey: '0' | '1' | '2' (pane index 아님 — recon-v2 핵심 정정)
   sources: Map<string, TvToolDTO>
 }
 
 interface TvChartWidget {
-  lineToolsAndGroupsDTO?: () => Map<number, TvPaneDTO>
+  // Map key = layoutKey string ('0','1','2'), pane index 아님 (recon-v2 정정)
+  lineToolsAndGroupsDTO?: () => Map<string, TvPaneDTO>
   model?: () => TvModel
 }
 
@@ -110,16 +127,19 @@ function getActiveWidget(): TvChartWidget | null {
 
 /**
  * TV DTO point → TrendlinePoint 변환.
- * TV 는 {time: unixSec, price} 형식. milliseconds 이면 /1000.
+ * v2: time_t (unix epoch seconds) 우선, legacy time fallback.
+ * milliseconds(13자리 이상) 이면 /1000 변환.
  */
 function toTrendlinePoint(raw: {
+  time_t?: number
   time?: number
   price?: number
   index?: number
   value?: number
 }): TrendlinePoint {
-  let time = raw.time ?? 0
-  // 13자리 이상(ms) → seconds 변환
+  // time_t 우선 (v2 실측 필드명), legacy time 은 fallback
+  let time = raw.time_t ?? raw.time ?? 0
+  // 13자리 이상(ms) → seconds 변환 (legacy 호환)
   if (time > 1e12) time = Math.floor(time / 1000)
   const price = raw.price ?? raw.value ?? 0
   return { time, price }
@@ -168,33 +188,44 @@ export function waitForTvChart(timeoutMs = 30_000): Promise<TvChartWidget> {
 export function readAllTrendlines(): TvTrendline[] {
   const symbol = readCurrentSymbol().raw
 
-  // ── 후보 1 ──────────────────────────────────────────────────────────────
+  // ── 후보 1: lineToolsAndGroupsDTO() v2 path (state 안 type/points) ────────
   try {
     const w = getActiveWidget()
     if (w && typeof w.lineToolsAndGroupsDTO === 'function') {
       const dto = w.lineToolsAndGroupsDTO()
-      // 후보 1 진입 시 발견된 모든 type 카운트 보고 (debug, hotfix3 한정)
-      console.info('[alertapp] readAllTrendlines: 발견 line type =', [...dto.values()].flatMap(p => [...p.sources.values()].map(s => s.type)))
       const out: TvTrendline[] = []
 
+      // R0-redo 정찰: DTO key 는 layoutKey ('0','1','2'). pane index 아님.
+      // 모든 entries walk 의무 — '0' 만 보면 항상 empty (v1 핵심 결함).
       dto.forEach((paneDto) => {
         paneDto.sources.forEach((toolDto, id) => {
-          if (!SUPPORTED_TYPES.has(toolDto.type)) return
-          const pts = toolDto.points
+          // v2: type/points 가 toolDto.state 안에 있음
+          const state = toolDto.state ?? toolDto
+          const type = state?.type ?? toolDto.type
+          if (!type || !SUPPORTED_TYPES.has(type)) return
+
+          const pts = state?.points ?? toolDto.points
           if (!pts || pts.length < 2) return
+
+          // entry 본인의 symbol 이 있으면 우선 사용, 없으면 chart symbol fallback
+          const entrySymbol = toolDto.state?.state?.symbol ?? symbol
+
           out.push({
             id,
             p1: toTrendlinePoint(pts[0]!),
             p2: toTrendlinePoint(pts[1]!),
-            symbol,
+            symbol: entrySymbol,
           })
         })
       })
 
+      // 진단 console (hotfix3 에 추가된 것 유지 + v2 path marker)
+      console.info('[alertapp] readAllTrendlines v2 path: 발견 line type =', [...dto.values()].flatMap(p => [...p.sources.values()].map(s => (s as any)?.state?.type ?? s.type)))
+
       return out
     }
   } catch (e) {
-    console.warn('alertapp: lineToolsAndGroupsDTO 실패 — 후보 2 시도', e)
+    console.warn('[alertapp] lineToolsAndGroupsDTO 실패 — 후보 2 시도', e)
   }
 
   // ── 후보 2 fallback: pane.dataSources() ─────────────────────────────────
