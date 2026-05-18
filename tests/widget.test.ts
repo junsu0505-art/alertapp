@@ -58,7 +58,7 @@ function makeAlert(overrides: Partial<TrendlineAlert> = {}): TrendlineAlert {
 
 function makeOpts(alerts: TrendlineAlert[] = [], hasTg = false): WidgetOpts {
   return {
-    onAddAlert: vi.fn(async () => undefined),
+    onAddAlert: vi.fn((_direction) => Promise.resolve()),
     onRemoveAlert: vi.fn(async () => undefined),
     onSetTelegramConfig: vi.fn(async () => undefined),
     getAlerts: vi.fn(async () => alerts),
@@ -238,5 +238,71 @@ describe('mountWidget DOM inject', () => {
     expect(vi.mocked(opts.getAlerts).mock.calls.length).toBeGreaterThanOrEqual(2)
 
     handle.destroy()
+  })
+
+  // ---------------------------------------------------------------------------
+  // Case 10: "위로 cross" 버튼 클릭 → onAddAlert('cross_above') 호출
+  // ---------------------------------------------------------------------------
+
+  it('Case 10: "위로 cross" 버튼 클릭 → onAddAlert("cross_above") 호출', async () => {
+    const trendline = {
+      id: 'tl-1',
+      p1: { time: 1700000000, price: 30000 },
+      p2: { time: 1700003600, price: 31000 },
+    }
+    vi.mocked(readAllTrendlines).mockReturnValue([trendline] as ReturnType<typeof readAllTrendlines>)
+
+    const opts = makeOpts()
+    const handle = mountWidget(opts)
+    await handle.refresh()
+
+    // + Alert 추가 버튼 클릭 → direction dialog 열기
+    const addBtn = document.getElementById('aa-add-btn') as HTMLButtonElement
+    addBtn.click()
+
+    // "위로 cross" 버튼 클릭
+    const aboveBtn = document.getElementById('aa-dir-above') as HTMLButtonElement
+    aboveBtn.click()
+
+    // 비동기 처리 대기
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(opts.onAddAlert).toHaveBeenCalledWith('cross_above')
+
+    handle.destroy()
+    vi.mocked(readAllTrendlines).mockReturnValue([])
+  })
+
+  // ---------------------------------------------------------------------------
+  // Case 11: "아래로 cross" 버튼 클릭 → onAddAlert('cross_below') 호출
+  // ---------------------------------------------------------------------------
+
+  it('Case 11: "아래로 cross" 버튼 클릭 → onAddAlert("cross_below") 호출', async () => {
+    const trendline = {
+      id: 'tl-1',
+      p1: { time: 1700000000, price: 30000 },
+      p2: { time: 1700003600, price: 31000 },
+    }
+    vi.mocked(readAllTrendlines).mockReturnValue([trendline] as ReturnType<typeof readAllTrendlines>)
+
+    const opts = makeOpts()
+    const handle = mountWidget(opts)
+    await handle.refresh()
+
+    // + Alert 추가 버튼 클릭 → direction dialog 열기
+    const addBtn = document.getElementById('aa-add-btn') as HTMLButtonElement
+    addBtn.click()
+
+    // "아래로 cross" 버튼 클릭
+    const belowBtn = document.getElementById('aa-dir-below') as HTMLButtonElement
+    belowBtn.click()
+
+    // 비동기 처리 대기
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(opts.onAddAlert).toHaveBeenCalledWith('cross_below')
+
+    handle.destroy()
+    vi.mocked(readAllTrendlines).mockReturnValue([])
   })
 })

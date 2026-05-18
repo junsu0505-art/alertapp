@@ -104,7 +104,7 @@ async function main(): Promise<void> {
   console.info('[alertapp] mountWidget call')
   widgetHandle = mountWidget({
     // ── onAddAlert ──────────────────────────────────────────────────────────
-    async onAddAlert(): Promise<void> {
+    async onAddAlert(direction: TrendlineAlert['direction']): Promise<void> {
       // 현재 추세선 목록 읽기
       const trendlines = readAllTrendlines()
       if (trendlines.length === 0) {
@@ -125,13 +125,7 @@ async function main(): Promise<void> {
         return
       }
 
-      // direction 결정 (CTO 결정 — v1 MVP confirm() 방식)
-      const isAbove = window.confirm(
-        '위로 cross 알람을 받으시겠어요?\n(확인 = 위로 cross, 취소 = 아래로 cross)',
-      )
-      const direction: TrendlineAlert['direction'] = isAbove ? 'cross_above' : 'cross_below'
-
-      // TrendlineAlert 생성
+      // direction 은 widget 에서 이미 전달받음 — confirm() 제거
       const newAlert: TrendlineAlert = {
         id: crypto.randomUUID(),
         symbol: symInfo.binanceSymbol,
@@ -139,7 +133,7 @@ async function main(): Promise<void> {
         tfLabel: '–',        // v1: TV timeframe API 미연동. v1.5+에서 보강
         p1: last.p1,
         p2: last.p2,
-        direction,
+        direction,           // ← 인자 그대로 사용
         status: 'armed',
         createdAt: Date.now(),
         triggeredAt: null,
@@ -147,6 +141,8 @@ async function main(): Promise<void> {
 
       await addAlert(newAlert)
       runner?.subscribe(newAlert)
+      console.info('[alertapp] alert added:', newAlert.id, newAlert.direction, newAlert.symbol)
+      await widgetHandle?.refresh()  // 새 alert 목록 즉시 갱신
     },
 
     // ── onRemoveAlert ────────────────────────────────────────────────────────

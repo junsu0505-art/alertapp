@@ -17,7 +17,7 @@ import { readAllTrendlines } from './dom.js'
 // ---------------------------------------------------------------------------
 
 export interface WidgetOpts {
-  onAddAlert: () => Promise<void>
+  onAddAlert: (direction: 'cross_above' | 'cross_below') => Promise<void>
   onRemoveAlert: (id: string) => Promise<void>
   onSetTelegramConfig: (botToken: string, chatId: string) => Promise<void>
   getAlerts: () => Promise<TrendlineAlert[]>
@@ -503,12 +503,12 @@ export function mountWidget(opts: WidgetOpts): WidgetHandle {
 
   document.getElementById('aa-dir-above')?.addEventListener('click', () => {
     closeDirDialog()
-    opts.onAddAlert().then(() => refreshInternal()).catch(console.warn)
+    opts.onAddAlert('cross_above').then(() => refreshInternal()).catch(console.warn)
   })
 
   document.getElementById('aa-dir-below')?.addEventListener('click', () => {
     closeDirDialog()
-    opts.onAddAlert().then(() => refreshInternal()).catch(console.warn)
+    opts.onAddAlert('cross_below').then(() => refreshInternal()).catch(console.warn)
   })
 
   document.getElementById('aa-dir-cancel')?.addEventListener('click', closeDirDialog)
