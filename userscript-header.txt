@@ -1,0 +1,17 @@
+// ==UserScript==
+// @name         alertapp
+// @namespace    https://github.com/junsu0505-art/alertapp
+// @version      0.1.0
+// @description  TradingView 추세선 cross 시 Telegram 알림
+// @author       junsu0505-art
+// @match        https://*.tradingview.com/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
+// @connect      api.telegram.org
+// @connect      stream.binance.com
+// @run-at       document-end
+// @license      MIT
+// ==/UserScript==
+

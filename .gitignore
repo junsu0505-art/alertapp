@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.local
+coverage/
+
+# R0 정찰 dev 자료 (TV-DOM-recon.md 본문만 keep, evidence + probe scripts 제외)
+docs/recon_evidence/
+docs/probe_tv*.py

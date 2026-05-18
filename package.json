@@ -1,0 +1,21 @@
+{
+  "name": "alertapp",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node build/esbuild.config.mjs",
+    "build:prod": "node build/esbuild.config.mjs --prod",
+    "dev": "node build/esbuild.config.mjs --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/tampermonkey": "^5.0.0",
+    "esbuild": "^0.21.0",
+    "jsdom": "^24.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
