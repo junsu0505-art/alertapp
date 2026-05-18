@@ -77,8 +77,19 @@ export interface TvTrendline {
   symbol: string      // 현재 chart symbol (readCurrentSymbol().raw)
 }
 
-// v1: trend_line 만 지원. extended_line / arrow / ray 는 v1.5+
-const SUPPORTED_TYPES = new Set(['LineToolTrendLine'])
+// 2-point 대각선 류 라인 도구 (가격 cross 의미 있는 타입).
+// 수평선(LineToolHorzLine)은 단일 가격 — v1.5+ 별도 처리.
+// 수직선(LineToolVertLine)은 cross 의미 없음 — 제외.
+const SUPPORTED_TYPES = new Set([
+  'LineToolTrendLine',
+  'LineToolRay',
+  'LineToolExtended',
+  'LineToolArrow',
+  'LineToolTrendAngle',
+  'LineToolDisjointAngle',
+  'LineToolParallelChannel',  // 채널 — 첫 2점 사용
+  'LineToolPolyline',          // 폴리라인 — 첫 2점만 사용 (fallback)
+])
 
 // ---------------------------------------------------------------------------
 // 내부 헬퍼
@@ -162,6 +173,8 @@ export function readAllTrendlines(): TvTrendline[] {
     const w = getActiveWidget()
     if (w && typeof w.lineToolsAndGroupsDTO === 'function') {
       const dto = w.lineToolsAndGroupsDTO()
+      // 후보 1 진입 시 발견된 모든 type 카운트 보고 (debug, hotfix3 한정)
+      console.info('[alertapp] readAllTrendlines: 발견 line type =', [...dto.values()].flatMap(p => [...p.sources.values()].map(s => s.type)))
       const out: TvTrendline[] = []
 
       dto.forEach((paneDto) => {
