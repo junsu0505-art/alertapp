@@ -71,15 +71,20 @@ function cleanup(): void {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  console.info('[alertapp] main() entry')
+
   if (!assertTampermonkey()) {
-    console.warn('alertapp: Tampermonkey GM API 미존재. 스크립트를 종료합니다.')
+    console.warn('[alertapp] Tampermonkey GM API 미존재. 스크립트를 종료합니다.')
     return
   }
+  console.info('[alertapp] assertTampermonkey OK')
 
   // TV chart hydrate 대기
   try {
     await waitForTvChart()
+    console.info('[alertapp] waitForTvChart resolved')
   } catch (err) {
+    console.warn('[alertapp] waitForTvChart rejected', err)
     alert('alertapp: TradingView 차트 로드를 기다리다 시간 초과됐습니다. 페이지를 새로고침해 주세요.')
     return
   }
@@ -93,8 +98,10 @@ async function main(): Promise<void> {
     },
   })
   await runner.start()
+  console.info('[alertapp] AlertRunner started')
 
   // Widget mount
+  console.info('[alertapp] mountWidget call')
   widgetHandle = mountWidget({
     // ── onAddAlert ──────────────────────────────────────────────────────────
     async onAddAlert(): Promise<void> {
@@ -171,6 +178,7 @@ async function main(): Promise<void> {
       return getTelegramConfig()
     },
   })
+  console.info('[alertapp] mountWidget done', widgetHandle ? 'OK' : 'NULL')
 
   // symbol 변경 감지 → runner 재구성
   unsubscribeSymbol = subscribeSymbolChange((_sym) => {
@@ -179,15 +187,19 @@ async function main(): Promise<void> {
     // widget refresh 로 UI 동기화.
     widgetHandle?.refresh().catch(console.warn)
   })
+  console.info('[alertapp] subscribeSymbolChange wired')
 
   // beforeunload cleanup
   window.addEventListener('beforeunload', cleanup)
+  console.info('[alertapp] main() complete')
 }
 
 // ---------------------------------------------------------------------------
 // 실행
 // ---------------------------------------------------------------------------
 
-main().catch((err: unknown) => {
-  console.error('alertapp: main() 오류', err)
-})
+main()
+  .then(() => console.info('[alertapp] main() resolved'))
+  .catch((err: unknown) => {
+    console.error('[alertapp] main() 오류', err)
+  })
