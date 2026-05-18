@@ -18,6 +18,16 @@
 import type { TrendlinePoint } from '../types.js'
 
 // ---------------------------------------------------------------------------
+// Tampermonkey sandbox vs page world bridge
+// @grant GM_* 모드에서 sandbox window 와 page window 분리됨.
+// TV 의 _exposed_chartWidgetCollection 은 page window 에만 존재.
+// unsafeWindow = page window (Tampermonkey 표준).
+// 테스트 환경(Node/jsdom)에서는 unsafeWindow 없음 → window fallback.
+// ---------------------------------------------------------------------------
+declare const unsafeWindow: Window
+const pageWindow: Window = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window
+
+// ---------------------------------------------------------------------------
 // 내부 TV DTO 타입 (실측 구조 기반)
 // ---------------------------------------------------------------------------
 
@@ -77,7 +87,7 @@ const SUPPORTED_TYPES = new Set(['LineToolTrendLine'])
 /** window._exposed_chartWidgetCollection?.activeChartWidget?.value() 반환. */
 function getActiveWidget(): TvChartWidget | null {
   try {
-    const col = (window as unknown as Record<string, unknown>)['_exposed_chartWidgetCollection'] as
+    const col = (pageWindow as unknown as Record<string, unknown>)['_exposed_chartWidgetCollection'] as
       | { activeChartWidget?: { value?: () => TvChartWidget } }
       | undefined
     const widget = col?.activeChartWidget?.value?.()
@@ -232,7 +242,7 @@ export function readTrendlineById(id: string): TvTrendline | null {
  */
 export function readCurrentSymbol(): { raw: string; binanceSymbol: string | null } {
   try {
-    const col = (window as unknown as Record<string, unknown>)['_exposed_chartWidgetCollection'] as
+    const col = (pageWindow as unknown as Record<string, unknown>)['_exposed_chartWidgetCollection'] as
       | {
           activeChartWidget?: {
             value?: () => {
